@@ -17,6 +17,7 @@ const notificationSenderPolicy: Policy<void> = (msg) => {
 export default notificationSenderPolicy;
 
 const sendNotificationsIfNeeded = async (event: Event) => {
+    console.log(`Sending notifications for event ${event.id}`);
     const db = await setupDatabase();
 
     // 1. Determine which pubkeys to notify
@@ -85,7 +86,7 @@ const getNotificationStatus = async (db: DB, eventId: string): Promise<Notificat
     }
 }
 
-const setupDatabase = async () => {
+export const setupDatabase = async () => {
     // Open or create the database
     const db = new DB('./apns_notifications.db');
 
