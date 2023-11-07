@@ -8,7 +8,7 @@ const router = new Router();
 const db = await setupDatabase();
 
 
-// Define the endpoint
+// Define the endpoint for the client to send device tokens to
 router.post("/user-info", async (ctx: Context) => {
     console.log("Received POST request to /user-info");
     const body = await ctx.request.body();
