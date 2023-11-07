@@ -6,6 +6,7 @@ import { load } from "https://deno.land/std@0.205.0/dotenv/mod.ts";
 
 const env = await load();
 const APNS_AUTH_TOKEN = env["APNS_AUTH_TOKEN"];
+const APNS_SERVER_BASE_URL = env["APNS_SERVER_BASE_URL"];
 
 const notificationSenderPolicy: Policy<void> = (msg) => {
     // Call async function to send notification without blocking
@@ -102,7 +103,8 @@ export const setupDatabase = async () => {
 };
 
 function sendEventNotificationToDeviceToken(event: Event<number>,deviceToken: string) {
-    fetch(`https://api.development.push.apple.com:443/3/device/${deviceToken}`, {
+    // fetch(`https://api.development.push.apple.com:443/3/device/${deviceToken}`, {
+    fetch(`http://localhost:8001/push-notification/${deviceToken}`, {
         method: 'POST',
         headers: {
             'authorization': `bearer ${APNS_AUTH_TOKEN}`,
