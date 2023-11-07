@@ -10,7 +10,13 @@ const db = await setupDatabase();
 
 // Define the endpoint
 router.post("/user-info", async (ctx: Context) => {
-    const { deviceToken, pubkey } = await ctx.request.body().value;
+    console.log("Received POST request to /user-info");
+    const body = await ctx.request.body();
+    const bodyValue = await body.value;
+    console.log(bodyValue);
+    const { deviceToken, pubkey } = bodyValue
+
+    console.log(`Received device token ${deviceToken} for pubkey ${pubkey}`)
     await db.query('INSERT OR REPLACE INTO user_info (pubkey, device_tokens) VALUES (?, ?)', [pubkey, JSON.stringify([deviceToken])]);
     ctx.response.body = "User info saved successfully";
 });

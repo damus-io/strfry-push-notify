@@ -2,6 +2,10 @@ import type { Event, Policy } from 'https://gitlab.com/soapbox-pub/strfry-polici
 import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
 import { NotificationStatus, Pubkey } from "./types.ts";
 import { relevantPubkeysFromEvent } from "./eventUtils.ts";
+import { load } from "https://deno.land/std@0.205.0/dotenv/mod.ts";
+
+const env = await load();
+const APNS_AUTH_TOKEN = env["APNS_AUTH_TOKEN"];
 
 const notificationSenderPolicy: Policy<void> = (msg) => {
     // Call async function to send notification without blocking
@@ -17,7 +21,6 @@ const notificationSenderPolicy: Policy<void> = (msg) => {
 export default notificationSenderPolicy;
 
 const sendNotificationsIfNeeded = async (event: Event) => {
-    console.log(`Sending notifications for event ${event.id}`);
     const db = await setupDatabase();
 
     // 1. Determine which pubkeys to notify
@@ -99,6 +102,24 @@ export const setupDatabase = async () => {
 };
 
 function sendEventNotificationToDeviceToken(event: Event<number>,deviceToken: string) {
-  console.log(`Sending notification for event ${event.id} to device token ${deviceToken}`);
-  // TODO: Implement real notification sending
+    fetch(`https://api.development.push.apple.com:443/3/device/${deviceToken}`, {
+        method: 'POST',
+        headers: {
+            'authorization': `bearer ${APNS_AUTH_TOKEN}`,
+            'apns-topic': 'com.jb55.damus2',
+            'apns-push-type': 'alert',
+            'apns-priority': '5',
+            'apns-expiration': '0',
+        },
+        body: JSON.stringify({
+            aps: {
+                alert: {
+                    // TODO: Improve the notification content
+                    title: 'New acitivity',
+                    subtitle: 'From: ' + event.pubkey,
+                    body: event.content,
+                }
+            }
+        }),
+    });
 }
