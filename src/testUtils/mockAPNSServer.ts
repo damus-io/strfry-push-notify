@@ -7,7 +7,7 @@ const router = new Router();
 // Define the endpoint for the client to send device tokens to
 router.post("/push-notification/:deviceToken", async (ctx) => {
     const deviceToken = ctx?.params.deviceToken;
-    const requestBody = await ctx.request.body();
+    const requestBody = await ctx.request.body().value
     const requestHeaders = ctx.request.headers;
 
     console.log(`Received push notification for device token: ${deviceToken}`);
