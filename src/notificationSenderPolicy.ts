@@ -29,7 +29,7 @@ const sendNotificationsIfNeeded = async (event: Event) => {
     const relevantPubkeys: Set<Pubkey> = relevantPubkeysFromEvent(event);
     const pubkeysThatReceivedNotification = getPubkeysThatReceivedNotification(notificationStatusForThisEvent);
     const pubkeysToNotify = new Set<Pubkey>(
-        [...relevantPubkeys].filter(x => !pubkeysThatReceivedNotification.has(x))
+        [...relevantPubkeys].filter(x => !pubkeysThatReceivedNotification.has(x) && x !== event.pubkey)
     );
     
     // 2. Send the notifications to them
@@ -117,7 +117,7 @@ function sendEventNotificationToDeviceToken(event: Event<number>,deviceToken: st
             aps: {
                 alert: {
                     // TODO: Improve the notification content
-                    title: 'New acitivity',
+                    title: 'New activity',
                     subtitle: 'From: ' + event.pubkey,
                     body: event.content,
                 }
