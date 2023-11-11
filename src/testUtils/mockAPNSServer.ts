@@ -11,7 +11,7 @@ router.post("/push-notification/:deviceToken", async (ctx) => {
     const requestHeaders = ctx.request.headers;
 
     console.log(`Received push notification for device token: ${deviceToken}`);
-    console.log(`Request body: ${JSON.stringify(requestBody)}`);
+    console.log(`Request body: ${requestBody}`);
     console.log(`Request headers: ${JSON.stringify(requestHeaders)}`);
 });
 

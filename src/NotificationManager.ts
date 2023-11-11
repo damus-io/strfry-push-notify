@@ -66,7 +66,7 @@ export class NotificationManager {
     
         // Send the notification to each device token
         for(const deviceToken of userDeviceTokens) {
-            await this.sendEventNotificationToDeviceToken(event, deviceToken, pubkey);
+            await this.sendEventNotificationToDeviceToken(event, deviceToken);
         }
     };
 
@@ -101,43 +101,44 @@ export class NotificationManager {
         }
     }
 
-    async sendEventNotificationToDeviceToken(event: NostrEvent, deviceToken: string, receivingUserPubkey: Pubkey) {
-        let title = "New activity";
-        let subtitle = "From: " + event.info.pubkey;
-        let body = event.info.content;
-        switch(event.info.kind) {
-            case 1:
-                title = "New mention";
-                subtitle = "From: " + event.info.pubkey;
-                body = event.info.content;
-                break;
-            case 4:
-                title = "New Direct Message";
-                subtitle = "From: " + event.info.pubkey;
-                body = "Message content is encrypted";
-                break;
-        }
+    async sendEventNotificationToDeviceToken(event: NostrEvent, deviceToken: string) {
+        const { title, subtitle, body } = this.formatNotificationMessage(event);
 
         await fetch(APNS_SERVER_BASE_URL + deviceToken, {
             method: 'POST',
             headers: {
                 'authorization': `bearer ${APNS_AUTH_TOKEN}`,
                 'apns-topic': APNS_TOPIC,
-                'apns-push-type': 'alert',
+                'apns-push-type': 'alert',  // Important to allow notifications to be optionally suppressed (e.g. when the app already delivered a local notification)
                 'apns-priority': '5',
                 'apns-expiration': '0',
             },
             body: JSON.stringify({
                 aps: {
                     alert: {
-                        // TODO: Improve the notification content
                         title: title,
                         subtitle: subtitle,
                         body: body,
-                    }
-                }
+                    },
+                    "mutable-content": 1
+                },
+                nostr_event: event.info,
             }),
         });
+    }
+
+    formatNotificationMessage(event: NostrEvent): { title: string, subtitle: string, body: string } {
+        // This is a very basic notification format. 
+        // The idea is that the app will do the heavy lifting of formatting the notification, and this is simply a fallback in case it cannot do formatting in time.
+        // The reason we put the responsibility on the client is for the following reasons:
+        // 1. DM decryption can only be done on the client
+        // 2. There is more infrastructure for localizing the text on the client than on the server
+        // 3. Offloads the work of pulling profile names and other info to the client who probably has a copy in NostrDB
+        // 4. Improves privacy by not requiring extra user info (e.g. locale) to be sent to the server
+        const title = "New activity";
+        const subtitle = "From: " + event.info.pubkey;
+        const body = event.info.content;
+        return { title, subtitle, body };
     }
 
     async saveUserDeviceInfo(pubkey: Pubkey, deviceToken: string) {
