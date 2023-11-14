@@ -2,9 +2,13 @@ import type { Policy } from 'https://gitlab.com/soapbox-pub/strfry-policies/-/ra
 import { NotificationManager } from "./NotificationManager.ts";
 import { NostrEvent } from "./NostrEvent.ts";
 
+interface NotificationSenderPolicyOptions {
+    rejectEvents?: boolean;
+}
+
 // This is the strfry-policies policy that sends notifications.
 // To use this, just add this to your policy pipeline.
-const notificationSenderPolicy: Policy<void> = (msg) => {
+const notificationSenderPolicy: Policy<NotificationSenderPolicyOptions> = (msg, options) => {
     // Set things up
     const nostrEvent = new NostrEvent(msg.event);
     const notificationManager = new NotificationManager();
@@ -17,7 +21,7 @@ const notificationSenderPolicy: Policy<void> = (msg) => {
     // Passthrough (do not try to filter the event)
     return {
         id: msg.event.id,
-        action: 'accept',
+        action: options?.rejectEvents ? 'shadowReject' : 'accept',
         msg: '',
     };
 };

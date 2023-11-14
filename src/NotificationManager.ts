@@ -150,9 +150,7 @@ export class NotificationManager {
                 }
             };
 
-            https.request(options, (res) => {
-                // No need to do anything here yet
-            })
+            https.request(options).end();
             return;
         }
 
