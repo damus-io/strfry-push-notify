@@ -2,11 +2,16 @@ import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
 import { Pubkey } from "./types.ts";
 import { NostrEvent } from "./NostrEvent.ts";
 import { load } from "https://deno.land/std@0.205.0/dotenv/mod.ts";
+import https from "node:https";
+import fs from "node:fs";
 
 const env = await load();
-const APNS_SERVER_BASE_URL = env["APNS_SERVER_BASE_URL"] || "http://localhost:8001/push-notification/";
+const APNS_SERVER_BASE_URL = env["APNS_SERVER_BASE_URL"] || "http://localhost:8001/push-notification/"; // Probably api.development.push.apple.com/3/device for development, api.push.apple.com/3/device for production
+const APNS_AUTH_METHOD: "certificate" | "token" = env["APNS_AUTH_METHOD"] as ("certificate" | "token") || "token";
 const APNS_AUTH_TOKEN = env["APNS_AUTH_TOKEN"];
 const APNS_TOPIC = env["APNS_TOPIC"] || "com.jb55.damus2";
+const APNS_CERTIFICATE_FILE_PATH = env["APNS_CERTIFICATE_FILE_PATH"] || "./apns_cert.pem";
+const APNS_CERTIFICATE_KEY_FILE_PATH = env["APNS_CERTIFICATE_KEY_FILE_PATH"] || "./apns_key.pem";
 
 // The NotificationManager has three main responsibilities:
 // 1. Keep track of pubkeys and associated iOS device tokens
@@ -126,6 +131,29 @@ export class NotificationManager {
 
     async sendEventNotificationToDeviceToken(event: NostrEvent, deviceToken: string) {
         const { title, subtitle, body } = this.formatNotificationMessage(event);
+
+        if (APNS_AUTH_METHOD === "certificate") {
+            // Send using certificate-based authentication
+            const options = {
+                hostname: APNS_SERVER_BASE_URL,
+                port: 443,
+                path: deviceToken,
+                method: 'POST',
+                cert: fs.readFileSync(APNS_CERTIFICATE_FILE_PATH),
+                key: fs.readFileSync(APNS_CERTIFICATE_KEY_FILE_PATH),
+                headers: {
+                  "apns-topic": APNS_TOPIC,
+                  "apns-push-type": "alert",
+                  "apns-priority": "5",
+                  "apns-expiration": "0"
+                }
+            };
+
+            https.request(options, (res) => {
+                // No need to do anything here yet
+            })
+            return;
+        }
 
         await fetch(APNS_SERVER_BASE_URL + deviceToken, {
             method: 'POST',
