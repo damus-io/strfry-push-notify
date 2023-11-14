@@ -25,9 +25,13 @@ export class NotificationManager {
 
     async setupDatabase() {
         // Create a table of notification statuses for each event
-        await this.db.execute('CREATE TABLE IF NOT EXISTS notifications (event_id TEXT PRIMARY KEY, notification_status TEXT)');
-        // Create a table of device tokens (JSON string) for each pubkey
-        await this.db.execute('CREATE TABLE IF NOT EXISTS user_info (pubkey TEXT PRIMARY KEY, device_tokens TEXT)');
+        await this.db.execute('CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, event_id TEXT, pubkey TEXT, received_notification BOOLEAN)');
+        // Create an index on the event_id column for faster lookups
+        await this.db.execute('CREATE INDEX IF NOT EXISTS notification_event_id_index ON notifications (event_id)');
+        // Create a table of device tokens and associated pubkeys
+        await this.db.execute('CREATE TABLE IF NOT EXISTS user_info (id TEXT PRIMARY KEY, device_token TEXT, pubkey TEXT)');
+        // Create an index on the pubkey column for faster lookups
+        await this.db.execute('CREATE INDEX IF NOT EXISTS user_info_pubkey_index ON user_info (pubkey)');
         this.isDatabaseSetup = true;
     };
 
@@ -54,11 +58,7 @@ export class NotificationManager {
         }
     
         // 3. Record who we sent notifications to
-        const newNotificationStatus = {
-            ...notificationStatusForThisEvent,
-            ...Object.fromEntries([...pubkeysToNotify].map(pubkey => [pubkey, true])),
-        };
-        await this.db.query('INSERT OR REPLACE INTO notifications (event_id, notification_status) VALUES (?, ?)', [event.info.id, JSON.stringify(newNotificationStatus)]);
+        await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification) VALUES (?, ?, ?, ?)', [event.info.id + ":" + event.info.pubkey, event.info.id, event.info.pubkey, true]);
     };
 
     async sendEventNotificationsToPubkey(event: NostrEvent, pubkey: Pubkey) {
@@ -74,15 +74,14 @@ export class NotificationManager {
         this.throwIfDatabaseNotSetup();
 
         // Get the device tokens for this pubkey
-        const resultRows: Array<[string]> = await this.db.query('SELECT device_tokens FROM user_info WHERE pubkey = (?)', [pubkey]);
+        const resultRows: Array<[string]> = await this.db.query('SELECT device_token FROM user_info WHERE pubkey = (?)', [pubkey]);
     
         if (resultRows.length === 0) {
             // No device tokens found for this pubkey
             return [];
             
         } else {
-            const [deviceTokensJSON] = resultRows[0];
-            return JSON.parse(deviceTokensJSON);
+            return resultRows.map(([deviceToken]) => { return deviceToken });
         }
     }
 
@@ -90,14 +89,14 @@ export class NotificationManager {
         this.throwIfDatabaseNotSetup();
 
         // Get the notification status for this event
-        const resultRows: Array<[string]> = await this.db.query('SELECT notification_status FROM notifications WHERE event_id = (?)', [event.info.id]);
+        const resultRows: Array<[string, boolean]> = await this.db.query('SELECT pubkey, received_notification FROM notifications WHERE event_id = (?)', [event.info.id]);
     
         if (resultRows.length === 0) {
             // No notification status found for this event, create an empty status object
             return new NotificationStatus({});
         } else {
-            const [notificationStatusJSON] = resultRows[0];
-            return JSON.parse(notificationStatusJSON);
+            const notificationStatusInfo: Record<Pubkey, boolean> = Object.fromEntries(resultRows);
+            return new NotificationStatus(notificationStatusInfo);
         }
     }
 
@@ -144,7 +143,7 @@ export class NotificationManager {
     async saveUserDeviceInfo(pubkey: Pubkey, deviceToken: string) {
         this.throwIfDatabaseNotSetup();
 
-        await this.db.query('INSERT OR REPLACE INTO user_info (pubkey, device_tokens) VALUES (?, ?)', [pubkey, JSON.stringify([deviceToken])]);
+        await this.db.query('INSERT OR REPLACE INTO user_info (id, pubkey, device_token) VALUES (?, ?, ?)', [pubkey + ":" + deviceToken, pubkey, deviceToken]);
     }
 }
 
