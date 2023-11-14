@@ -16,8 +16,11 @@ export class NostrEvent {
     }
 
     relevantPubkeys(): Set<Pubkey> {
-        // TODO: We should add pubkeys of people to whom this event is a thread reply
         return new Set<Pubkey>([this.info.pubkey, ...this.referencedPubkeys()]);
+    }
+
+    referencedEventIds(): Set<string> {
+        return new Set<string>(this.getTags('e'));
     }
 
     getTags(tagType: string): Array<string> {

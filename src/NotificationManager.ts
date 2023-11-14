@@ -46,7 +46,7 @@ export class NotificationManager {
     
         // 1. Determine which pubkeys to notify
         const notificationStatusForThisEvent: NotificationStatus = await this.getNotificationStatus(event);
-        const relevantPubkeys: Set<Pubkey> = event.relevantPubkeys();
+        const relevantPubkeys: Set<Pubkey> = await this.pubkeysRelevantToEvent(event);
         const pubkeysThatReceivedNotification = notificationStatusForThisEvent.pubkeysThatReceivedNotification();
         const pubkeysToNotify = new Set<Pubkey>(
             [...relevantPubkeys].filter(x => !pubkeysThatReceivedNotification.has(x) && x !== event.info.pubkey)
@@ -60,6 +60,30 @@ export class NotificationManager {
         // 3. Record who we sent notifications to
         await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification) VALUES (?, ?, ?, ?)', [event.info.id + ":" + event.info.pubkey, event.info.id, event.info.pubkey, true]);
     };
+
+    async pubkeysRelevantToEvent(event: NostrEvent): Promise<Set<Pubkey>> {
+        await this.throwIfDatabaseNotSetup();
+        const relevantPubkeys: Set<Pubkey> = event.relevantPubkeys();
+        const referencedEventIds: Set<string> = event.referencedEventIds();
+        const pubkeysInThread: Set<Pubkey> = new Set<Pubkey>();
+        for(const referencedEventId of referencedEventIds) {
+            const pubkeysRelevantToReferencedEvent = await this.pubkeysSubscribedToEventId(referencedEventId);
+            pubkeysRelevantToReferencedEvent.forEach((pubkey: Pubkey) => {
+                pubkeysInThread.add(pubkey);
+            });
+        }
+        return new Set<Pubkey>([...relevantPubkeys, ...pubkeysInThread]);
+    }
+
+    async pubkeysSubscribedToEvent(event: NostrEvent): Promise<Set<Pubkey>> {
+        return await this.pubkeysSubscribedToEventId(event.info.id);
+    }
+
+    async pubkeysSubscribedToEventId(eventId: string): Promise<Set<Pubkey>> {
+        await this.throwIfDatabaseNotSetup();
+        const resultRows: Array<[string]> = await this.db.query('SELECT pubkey FROM notifications WHERE event_id = (?)', [eventId]);
+        return new Set<Pubkey>(resultRows.map(([pubkey]) => { return pubkey }));
+    }
 
     async sendEventNotificationsToPubkey(event: NostrEvent, pubkey: Pubkey) {
         const userDeviceTokens = await this.getUserDeviceTokens(pubkey);
