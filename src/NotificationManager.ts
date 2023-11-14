@@ -12,6 +12,7 @@ const APNS_AUTH_TOKEN = env["APNS_AUTH_TOKEN"];
 const APNS_TOPIC = env["APNS_TOPIC"] || "com.jb55.damus2";
 const APNS_CERTIFICATE_FILE_PATH = env["APNS_CERTIFICATE_FILE_PATH"] || "./apns_cert.pem";
 const APNS_CERTIFICATE_KEY_FILE_PATH = env["APNS_CERTIFICATE_KEY_FILE_PATH"] || "./apns_key.pem";
+const DB_PATH = env["DB_PATH"] || "./apns_notifications.db";
 
 // The NotificationManager has three main responsibilities:
 // 1. Keep track of pubkeys and associated iOS device tokens
@@ -23,7 +24,7 @@ export class NotificationManager {
     private isDatabaseSetup: boolean;
 
     constructor(dbPath?: string | undefined) {
-        this.dbPath = dbPath || "./apns_notifications.db"
+        this.dbPath = dbPath || DB_PATH;
         this.db = new DB(this.dbPath);
         this.isDatabaseSetup = false;
     }
