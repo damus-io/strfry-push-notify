@@ -8,22 +8,24 @@ interface NotificationSenderPolicyOptions {
 
 // This is the strfry-policies policy that sends notifications.
 // To use this, just add this to your policy pipeline.
-const notificationSenderPolicy: Policy<NotificationSenderPolicyOptions> = (msg, options) => {
+async function makeNotificationSenderPolicy(options: any): Policy<NotificationSenderPolicyOptions> {
     // Set things up
-    const nostrEvent = new NostrEvent(msg.event);
     const notificationManager = new NotificationManager();
+    await notificationManager.setupDatabase()
 
-    // Call async function to send notifications without blocking
-    notificationManager.setupDatabase().then(() => {
-        notificationManager.sendNotificationsIfNeeded(nostrEvent);
-    });
+    return (msg) => {
+        const nostrEvent = new NostrEvent(msg.event);
+        // Call async function to send notifications without blocking
+            notificationManager.sendNotificationsIfNeeded(nostrEvent);
 
-    // Passthrough (do not try to filter the event)
-    return {
-        id: msg.event.id,
-        action: options?.rejectEvents ? 'shadowReject' : 'accept',
-        msg: '',
-    };
-};
+        // Passthrough (do not try to filter the event)
+        return {
+            id: msg.event.id,
+            action: options?.rejectEvents ? 'shadowReject' : 'accept',
+            msg: '',
+        }
+    }
 
-export default notificationSenderPolicy;
+}
+
+export default makeNotificationSenderPolicy;
