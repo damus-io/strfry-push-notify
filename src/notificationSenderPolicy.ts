@@ -21,8 +21,8 @@ async function makeNotificationSenderPolicy(options: any): Policy<NotificationSe
         // Passthrough (do not try to filter the event)
         return {
             id: msg.event.id,
-            action: options?.rejectEvents ? 'shadowReject' : 'accept',
-            msg: '',
+            action: options?.rejectEvents ? 'reject' : 'accept',
+            msg: 'skipped: notification relay does not store notes',
         }
     }
 
