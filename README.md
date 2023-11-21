@@ -10,7 +10,7 @@ This is a [soapbox-strfry-policies](https://gitlab.com/soapbox-pub/strfry-polici
 1. Install [strfry](https://github.com/hoytech/strfry)
 2. Install [soapbox-strfry-policies](https://gitlab.com/soapbox-pub/strfry-policies/-/tree/develop)
 3. Clone this repository
-4. Add `notificationSenderPolicy` to your `strfry-policy.ts`. Example:
+4. Initialize a new sender policy using `makeNotificationSenderPolicy` and add it to your `strfry-policy.ts`. Example:
 
 ```diff
 import {
@@ -21,7 +21,9 @@ import {
   readStdin,
   writeStdout,
 } from 'https://gitlab.com/soapbox-pub/strfry-policies/-/raw/433459d8084d1f2d6500fdf916f22caa3b4d7be5/mod.ts';
-+ import notificationSenderPolicy from "../notificationSenderPolicy.ts";
++ import makeNotificationSenderPolicy from "../notificationSenderPolicy.ts";
+
++ const notificationSenderPolicy = await makeNotificationSenderPolicy();
 
 for await (const msg of readStdin()) {
   const result = await pipeline(msg, [

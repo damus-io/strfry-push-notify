@@ -8,7 +8,9 @@ import {
   readStdin,
   writeStdout,
 } from 'https://gitlab.com/soapbox-pub/strfry-policies/-/raw/433459d8084d1f2d6500fdf916f22caa3b4d7be5/mod.ts';
-import notificationSenderPolicy from "../notificationSenderPolicy.ts";
+import makeNotificationSenderPolicy from "../notificationSenderPolicy.ts";
+
+const notificationSenderPolicy = await makeNotificationSenderPolicy();
 
 for await (const msg of readStdin()) {
   const result = await pipeline(msg, [

@@ -8,12 +8,12 @@ interface NotificationSenderPolicyOptions {
 
 // This is the strfry-policies policy that sends notifications.
 // To use this, just add this to your policy pipeline.
-async function makeNotificationSenderPolicy(options: any): Policy<NotificationSenderPolicyOptions> {
+async function makeNotificationSenderPolicy(): Promise<Policy<NotificationSenderPolicyOptions>> {
     // Set things up
     const notificationManager = new NotificationManager();
     await notificationManager.setupDatabase()
-
-    return (msg) => {
+    
+    const notificationSenderPolicy: Policy<NotificationSenderPolicyOptions> = (msg, options) => {
         const nostrEvent = new NostrEvent(msg.event);
         // Call async function to send notifications without blocking
             notificationManager.sendNotificationsIfNeeded(nostrEvent);
@@ -25,6 +25,8 @@ async function makeNotificationSenderPolicy(options: any): Policy<NotificationSe
             msg: 'skipped: notification relay does not store notes',
         }
     }
+
+    return notificationSenderPolicy;
 
 }
 
