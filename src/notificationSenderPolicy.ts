@@ -16,7 +16,7 @@ async function makeNotificationSenderPolicy(): Promise<Policy<NotificationSender
     const notificationSenderPolicy: Policy<NotificationSenderPolicyOptions> = (msg, options) => {
         const nostrEvent = new NostrEvent(msg.event);
         // Call async function to send notifications without blocking
-            notificationManager.sendNotificationsIfNeeded(nostrEvent);
+        notificationManager.sendNotificationsIfNeeded(nostrEvent);
 
         // Passthrough (do not try to filter the event)
         return {

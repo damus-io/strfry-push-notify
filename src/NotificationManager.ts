@@ -30,6 +30,7 @@ export class NotificationManager {
     }
 
     async setupDatabase() {
+        // V1 of the database schema
         // Create a table of notification statuses for each event
         await this.db.execute('CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, event_id TEXT, pubkey TEXT, received_notification BOOLEAN)');
         // Create an index on the event_id column for faster lookups
@@ -38,8 +39,25 @@ export class NotificationManager {
         await this.db.execute('CREATE TABLE IF NOT EXISTS user_info (id TEXT PRIMARY KEY, device_token TEXT, pubkey TEXT)');
         // Create an index on the pubkey column for faster lookups
         await this.db.execute('CREATE INDEX IF NOT EXISTS user_info_pubkey_index ON user_info (pubkey)');
+
+        // V2 migration of the database schema
+        // Add a "sent_at" column to the notifications table to track UNIX timestamps of when notifications were sent
+        await this.addColumnIfNotExists('notifications', 'sent_at', 'INTEGER');
+        // Add an "added_at" column to the `user_info` table to track UNIX timestamps of when device tokens were added
+        await this.addColumnIfNotExists('user_info', 'added_at', 'INTEGER');
         this.isDatabaseSetup = true;
     };
+
+    // SECURITY NOTE: This function is not SQL injection safe, only use this for internal queries. NEVER use this with user input.
+    private async addColumnIfNotExists(tableName: string, columnName: string, columnType: string) {
+        // This query only works with string interpolation, so it is not SQL injection safe.
+        const resultRows: Array<[number, string, string, number, null, number]> = await this.db.query(`PRAGMA table_info(${tableName})`);
+        const columnNames = resultRows.map(([_cid, name, _type, _notnull, _dflt_value, _pk]) => { return name });
+        if (!columnNames.includes(columnName)) {
+            // This query only works with string interpolation, so it is not SQL injection safe.
+            await this.db.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`)
+        }
+    }
 
     throwIfDatabaseNotSetup() {
         if (!this.isDatabaseSetup) {
@@ -47,8 +65,20 @@ export class NotificationManager {
         }
     }
 
+    async closeDatabase() {
+        await this.db.close();
+        this.isDatabaseSetup = false;
+    }
+
     async sendNotificationsIfNeeded(event: NostrEvent) {
         this.throwIfDatabaseNotSetup();
+
+        // 0. Check if event is more than 1 week old. If so, do not send notifications.
+        const currentTimeUnix = getCurrentTimeUnix();
+        const oneWeekAgo = currentTimeUnix - 7 * 24 * 60 * 60;
+        if (event.info.created_at < oneWeekAgo) {
+            return;
+        }
     
         // 1. Determine which pubkeys to notify
         const notificationStatusForThisEvent: NotificationStatus = await this.getNotificationStatus(event);
@@ -64,7 +94,7 @@ export class NotificationManager {
         }
     
         // 3. Record who we sent notifications to
-        await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification) VALUES (?, ?, ?, ?)', [event.info.id + ":" + event.info.pubkey, event.info.id, event.info.pubkey, true]);
+        await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification, sent_at) VALUES (?, ?, ?, ?, ?)', [event.info.id + ":" + event.info.pubkey, event.info.id, event.info.pubkey, true, currentTimeUnix]);
     };
 
     async pubkeysRelevantToEvent(event: NostrEvent): Promise<Set<Pubkey>> {
@@ -194,7 +224,8 @@ export class NotificationManager {
     async saveUserDeviceInfo(pubkey: Pubkey, deviceToken: string) {
         this.throwIfDatabaseNotSetup();
 
-        await this.db.query('INSERT OR REPLACE INTO user_info (id, pubkey, device_token) VALUES (?, ?, ?)', [pubkey + ":" + deviceToken, pubkey, deviceToken]);
+        const currentTimeUnix = getCurrentTimeUnix();
+        await this.db.query('INSERT OR REPLACE INTO user_info (id, pubkey, device_token, added_at) VALUES (?, ?, ?, ?)', [pubkey + ":" + deviceToken, pubkey, deviceToken, currentTimeUnix]);
     }
 }
 
@@ -211,4 +242,8 @@ class NotificationStatus {
                 .map(([pubkey, _]) => { return pubkey })
         );
     }
+}
+
+function getCurrentTimeUnix(): number {
+    return Math.floor((new Date().getTime())/1000);
 }
