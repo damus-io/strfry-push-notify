@@ -202,7 +202,7 @@ export class NotificationManager {
                     },
                     "mutable-content": 1
                 },
-                nostr_event: event.info,
+                nostr_event: JSON.stringify(event.info),
             }),
         });
     }
