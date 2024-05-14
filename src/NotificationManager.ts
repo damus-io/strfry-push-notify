@@ -4,6 +4,7 @@ import { NostrEvent } from "./NostrEvent.ts";
 import { load } from "https://deno.land/std@0.205.0/dotenv/mod.ts";
 import https from "node:https";
 import fs from "node:fs";
+import { MuteManager } from "./MuteManager.ts";
 
 const env = await load();
 const APNS_SERVER_BASE_URL = env["APNS_SERVER_BASE_URL"] || "http://localhost:8001/push-notification/"; // Probably api.development.push.apple.com/3/device for development, api.push.apple.com/3/device for production
@@ -13,6 +14,7 @@ const APNS_TOPIC = env["APNS_TOPIC"] || "com.jb55.damus2";
 const APNS_CERTIFICATE_FILE_PATH = env["APNS_CERTIFICATE_FILE_PATH"] || "./apns_cert.pem";
 const APNS_CERTIFICATE_KEY_FILE_PATH = env["APNS_CERTIFICATE_KEY_FILE_PATH"] || "./apns_key.pem";
 const DB_PATH = env["DB_PATH"] || "./apns_notifications.db";
+const RELAY_URL = env["RELAY_URL"] || "ws://localhost";
 
 // The NotificationManager has three main responsibilities:
 // 1. Keep track of pubkeys and associated iOS device tokens
@@ -22,11 +24,13 @@ export class NotificationManager {
     private dbPath: string;
     private db: DB;
     private isDatabaseSetup: boolean;
+    private muteManager: MuteManager;
 
-    constructor(dbPath?: string | undefined) {
+    constructor(dbPath?: string | undefined, relayUrl?: string | undefined) {
         this.dbPath = dbPath || DB_PATH;
         this.db = new DB(this.dbPath);
         this.isDatabaseSetup = false;
+        this.muteManager = new MuteManager(relayUrl || RELAY_URL);
     }
 
     async setupDatabase() {
@@ -81,21 +85,39 @@ export class NotificationManager {
         }
     
         // 1. Determine which pubkeys to notify
+        const pubkeysToNotify = await this.pubkeysToNotifyForEvent(event);
+        
+        // 2. Send the notifications to them and record that we sent them
+        for(const pubkey of pubkeysToNotify) {
+            await this.sendEventNotificationsToPubkey(event, pubkey);
+            // Record that we sent the notification
+            await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification, sent_at) VALUES (?, ?, ?, ?, ?)', [event.info.id + ":" + pubkey, event.info.id, pubkey, true, currentTimeUnix]);
+        }    
+    };
+
+    /**
+     * Retrieves the set of public keys to notify for a given event.
+     * 
+     * @param event - The NostrEvent object representing the event.
+     * @returns A Promise that resolves to a Set of Pubkey objects representing the public keys to notify.
+     */
+    async pubkeysToNotifyForEvent(event: NostrEvent): Promise<Set<Pubkey>> {
         const notificationStatusForThisEvent: NotificationStatus = await this.getNotificationStatus(event);
         const relevantPubkeys: Set<Pubkey> = await this.pubkeysRelevantToEvent(event);
         const pubkeysThatReceivedNotification = notificationStatusForThisEvent.pubkeysThatReceivedNotification();
-        const pubkeysToNotify = new Set<Pubkey>(
+        const relevantPubkeysYetToReceive = new Set<Pubkey>(
             [...relevantPubkeys].filter(x => !pubkeysThatReceivedNotification.has(x) && x !== event.info.pubkey)
         );
-        
-        // 2. Send the notifications to them
-        for(const pubkey of pubkeysToNotify) {
-            await this.sendEventNotificationsToPubkey(event, pubkey);
+
+        const pubkeysToNotify = new Set<Pubkey>();
+        for (const pubkey of relevantPubkeysYetToReceive) {
+            const shouldMuteNotification = await this.muteManager.shouldMuteNotificationForPubkey(event, pubkey);
+            if (!shouldMuteNotification) {
+                pubkeysToNotify.add(pubkey);
+            }
         }
-    
-        // 3. Record who we sent notifications to
-        await this.db.query('INSERT OR REPLACE INTO notifications (id, event_id, pubkey, received_notification, sent_at) VALUES (?, ?, ?, ?, ?)', [event.info.id + ":" + event.info.pubkey, event.info.id, event.info.pubkey, true, currentTimeUnix]);
-    };
+        return pubkeysToNotify;
+    }
 
     async pubkeysRelevantToEvent(event: NostrEvent): Promise<Set<Pubkey>> {
         await this.throwIfDatabaseNotSetup();
