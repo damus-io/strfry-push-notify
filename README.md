@@ -48,6 +48,7 @@ APNS_CERTIFICATE_FILE_PATH=./apns_cert.pem      # Only if APNS_AUTH_METHOD is "c
 APNS_CERTIFICATE_KEY_FILE_PATH=./apns_key.pem   # Only if APNS_AUTH_METHOD is "certificate". Path to your APNS certificate key file
 DB_PATH=./apns_notifications.db     # Path to the SQLite database file that will be used to store data about sent notifications
 RELAY_URL=ws://localhost            # URL to the relay server which will be consulted to get information such as mute lists.
+API_BASE_URL=http://localhost:8000      # Base URL of the API for NIP-98 authentication
 ```
 
 6. Start strfry
