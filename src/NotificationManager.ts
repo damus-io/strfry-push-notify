@@ -249,6 +249,12 @@ export class NotificationManager {
         const currentTimeUnix = getCurrentTimeUnix();
         await this.db.query('INSERT OR REPLACE INTO user_info (id, pubkey, device_token, added_at) VALUES (?, ?, ?, ?)', [pubkey + ":" + deviceToken, pubkey, deviceToken, currentTimeUnix]);
     }
+
+    async removeUserDeviceInfo(pubkey: Pubkey, deviceToken: string) {
+        this.throwIfDatabaseNotSetup();
+
+        await this.db.query('DELETE FROM user_info WHERE pubkey = (?) AND device_token = (?)', [pubkey, deviceToken]);
+    }
 }
 
 

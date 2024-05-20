@@ -79,6 +79,25 @@ router.post("/user-info", async (ctx: Context) => {
     ctx.response.body = "User info saved successfully";
 });
 
+// Define the endpoint for the client to revoke device tokens
+router.post("/user-info/remove", async (ctx: Context) => {
+    const body = await ctx.request.body();
+    const bodyValue = await body.value;
+    
+    const { pubkey, deviceToken } = bodyValue
+
+    if (pubkey !== ctx.state.authorized_pubkey) {
+        ctx.response.status = 403;
+        ctx.response.body = "Pubkey does not match authorized pubkey";
+        return;
+    }
+
+    const notificationManager = new NotificationManager();
+    await notificationManager.setupDatabase()
+    notificationManager.removeUserDeviceInfo(pubkey, deviceToken);
+    ctx.response.body = "User info removed successfully";
+});
+
 app.use(router.routes());
 app.use(router.allowedMethods());
 
