@@ -37,25 +37,26 @@ for await (const msg of readStdin()) {
 }
 ```
 
-5. On the working directory from which you start `strfry`, create an `.env` file with the following contents:
+5. Go to the root of this repository and run `npm install` to install the node modules for the node.js script that will be used to send the notifications
+
+6. On the working directory from which you start `strfry`, create an `.env` file with the following contents:
 
 ```env
-APNS_SERVER_BASE_URL=https://api.push.apple.com/3/device/
-APNS_AUTH_METHOD="certificate"      # or "token"
-APNS_AUTH_TOKEN=<your_token_here>   # Only if APNS_AUTH_METHOD is "token"
-APNS_TOPIC="com.jb55.damus2"        # Your app's bundle ID
-APNS_CERTIFICATE_FILE_PATH=./apns_cert.pem      # Only if APNS_AUTH_METHOD is "certificate". Path to your APNS certificate file
-APNS_CERTIFICATE_KEY_FILE_PATH=./apns_key.pem   # Only if APNS_AUTH_METHOD is "certificate". Path to your APNS certificate key file
-DB_PATH=./apns_notifications.db     # Path to the SQLite database file that will be used to store data about sent notifications
-RELAY_URL=ws://localhost            # URL to the relay server which will be consulted to get information such as mute lists.
-API_BASE_URL=http://localhost:8000      # Base URL of the API for NIP-98 authentication
+APNS_TOPIC="com.your_org.your_app"        # Your app's bundle ID
+APNS_AUTH_PRIVATE_KEY_FILE_PATH=./AuthKey_1234567890.p8	# Path to the private key file used to generate JWT tokens with the Apple APNS server. You can obtain this from https://developer.apple.com/account/resources/authkeys/list
+APNS_AUTH_PRIVATE_KEY_ID=1234567890 # The ID of the private key used to generate JWT tokens with the Apple APNS server. You can obtain this from https://developer.apple.com/account/resources/authkeys/list
+APNS_ENVIRONMENT="development"    # The environment to use with the APNS server. Can be "development" or "production"
+APPLE_TEAM_ID=1248163264        # The ID of the team. Can be found in AppStore Connect.
+DB_PATH=./apns_notifications.db         # Path to the SQLite database file that will be used to store data about sent notifications, relative to the working directory
+RELAY_URL=ws://localhost:7777           # URL to the relay server which will be consulted to get information such as mute lists.
+API_BASE_URL=http://localhost:8000      # Base URL from the API is allowed access (used by the server to perform NIP-98 authentication)
 ```
 
 6. Start strfry
 7. Start the device token receiver using:
 
 ```sh
-$ deno run --allow-read --allow-write --allow-net /path/to/strfry-push-notify/src/notificationServiceServer.ts
+/path/to/where/you/start/strfry $ deno run --allow-read --allow-write --allow-net --allow-env /path/to/strfry-push-notify/src/notificationServiceServer.ts
 ```
 
 ## Contributions
@@ -70,21 +71,24 @@ A Linux VM or a Linux machine is recommended for development.
 2. Install [soapbox-strfry-policies](https://gitlab.com/soapbox-pub/strfry-policies/-/tree/develop)
 3. Clone this repository
 4. Set the strfry policy to our test example policy at `src/testUtils/strfry-policy.ts`
-5. Start up the mock APNS server (if authentication with real APNS is not feasible/needed in your environment) using:
+5. Get a `.p8` **development** private key from [AppStore Connect](https://developer.apple.com/account/resources/authkeys/list) and save it where you start your strfry instance. This key will be used to generate JWT tokens for the APNS server.
+6. Install the node modules for the node.js script that will be used to send the notifications:
 
 ```sh
-$ deno run --allow-net /path/to/strfry-push-notify/src/mockAPNSServer.ts
+$ npm install
 ```
 
-5. On the working directory from which you start `strfry`, create an `.env` file with the following contents (assuming you're using the mock APNS server):
+6. On the working directory from which you start `strfry`, create an `.env` file with the following contents (assuming you're using the mock APNS server):
 
 ```env
-APNS_SERVER_BASE_URL=http://localhost:8001/push-notification
-APNS_AUTH_METHOD="token"
-APNS_AUTH_TOKEN=""                  # Can be anything if using the mock APNS server
-APNS_TOPIC="com.jb55.damus2"        # Your app's bundle ID
-DB_PATH=./apns_notifications.db     # Path to the SQLite database file that will be used to store data about sent notifications
-RELAY_URL=ws://localhost:7777       # URL to the relay server which will be consulted to get information such as mute lists.
+APNS_TOPIC="com.your_org.your_app"        # Your app's bundle ID
+APNS_AUTH_PRIVATE_KEY_FILE_PATH=./AuthKey_1234567890.p8	# Path to the private key file used to generate JWT tokens with the Apple APNS server. You can obtain this from https://developer.apple.com/account/resources/authkeys/list
+APNS_AUTH_PRIVATE_KEY_ID=1234567890 # The ID of the private key used to generate JWT tokens with the Apple APNS server. You can obtain this from https://developer.apple.com/account/resources/authkeys/list
+APNS_ENVIRONMENT="development"    # The environment to use with the APNS server. Can be "development" or "production"
+APPLE_TEAM_ID=1248163264        # The ID of the team. Can be found in AppStore Connect.
+DB_PATH=./apns_notifications.db         # Path to the SQLite database file that will be used to store data about sent notifications, relative to the working directory
+RELAY_URL=ws://localhost:7777           # URL to the relay server which will be consulted to get information such as mute lists.
+API_BASE_URL=http://localhost:8000      # Base URL from the API is allowed access (used by the server to perform NIP-98 authentication).
 ```
 
 6. Start strfry

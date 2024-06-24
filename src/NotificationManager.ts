@@ -2,17 +2,10 @@ import { DB } from "https://deno.land/x/sqlite@v3.8/mod.ts";
 import { Pubkey } from "./types.ts";
 import { NostrEvent } from "./NostrEvent.ts";
 import { load } from "https://deno.land/std@0.205.0/dotenv/mod.ts";
-import https from "node:https";
-import fs from "node:fs";
 import { MuteManager } from "./MuteManager.ts";
+import Logger from "https://deno.land/x/logger@v1.1.6/logger.ts";
 
 const env = await load();
-const APNS_SERVER_BASE_URL = env["APNS_SERVER_BASE_URL"] || "http://localhost:8001/push-notification/"; // Probably api.development.push.apple.com/3/device for development, api.push.apple.com/3/device for production
-const APNS_AUTH_METHOD: "certificate" | "token" = env["APNS_AUTH_METHOD"] as ("certificate" | "token") || "token";
-const APNS_AUTH_TOKEN = env["APNS_AUTH_TOKEN"];
-const APNS_TOPIC = env["APNS_TOPIC"] || "com.jb55.damus2";
-const APNS_CERTIFICATE_FILE_PATH = env["APNS_CERTIFICATE_FILE_PATH"] || "./apns_cert.pem";
-const APNS_CERTIFICATE_KEY_FILE_PATH = env["APNS_CERTIFICATE_KEY_FILE_PATH"] || "./apns_key.pem";
 const DB_PATH = env["DB_PATH"] || "./apns_notifications.db";
 const RELAY_URL = env["RELAY_URL"] || "ws://localhost";
 
@@ -25,12 +18,14 @@ export class NotificationManager {
     private db: DB;
     private isDatabaseSetup: boolean;
     private muteManager: MuteManager;
+    private logger: Logger;
 
     constructor(dbPath?: string | undefined, relayUrl?: string | undefined) {
         this.dbPath = dbPath || DB_PATH;
         this.db = new DB(this.dbPath);
         this.isDatabaseSetup = false;
         this.muteManager = new MuteManager(relayUrl || RELAY_URL);
+        this.logger = new Logger();
     }
 
     async setupDatabase() {
@@ -49,6 +44,10 @@ export class NotificationManager {
         await this.addColumnIfNotExists('notifications', 'sent_at', 'INTEGER');
         // Add an "added_at" column to the `user_info` table to track UNIX timestamps of when device tokens were added
         await this.addColumnIfNotExists('user_info', 'added_at', 'INTEGER');
+        // Initialize the logger
+        await this.logger.initFileLogger("strfry-push-notify-logs");
+        this.logger.disableConsole();
+        
         this.isDatabaseSetup = true;
     };
 
@@ -184,49 +183,47 @@ export class NotificationManager {
 
     async sendEventNotificationToDeviceToken(event: NostrEvent, deviceToken: string) {
         const { title, subtitle, body } = this.formatNotificationMessage(event);
+        
+        // Get the URL of the current module
+        const currentModuleUrl = import.meta.url;
+        const currentModulePath = new URL(currentModuleUrl).pathname;
+        const currentDir = currentModulePath.substring(0, currentModulePath.lastIndexOf("/"));
+        const scriptPath = `${currentDir}/send-to-apns.js`;
+        
+        const payload = {
+            deviceToken,
+            title,
+            subtitle,
+            body,
+            event: event.info,
+        };
 
-        if (APNS_AUTH_METHOD === "certificate") {
-            // Send using certificate-based authentication
-            const options = {
-                hostname: APNS_SERVER_BASE_URL,
-                port: 443,
-                path: deviceToken,
-                method: 'POST',
-                cert: fs.readFileSync(APNS_CERTIFICATE_FILE_PATH),
-                key: fs.readFileSync(APNS_CERTIFICATE_KEY_FILE_PATH),
-                headers: {
-                  "apns-topic": APNS_TOPIC,
-                  "apns-push-type": "alert",
-                  "apns-priority": "5",
-                  "apns-expiration": "0"
-                }
-            };
-
-            https.request(options).end();
-            return;
-        }
-
-        await fetch(APNS_SERVER_BASE_URL + deviceToken, {
-            method: 'POST',
-            headers: {
-                'authorization': `bearer ${APNS_AUTH_TOKEN}`,
-                'apns-topic': APNS_TOPIC,
-                'apns-push-type': 'alert',  // Important to allow notifications to be optionally suppressed (e.g. when the app already delivered a local notification)
-                'apns-priority': '5',
-                'apns-expiration': '0',
-            },
-            body: JSON.stringify({
-                aps: {
-                    alert: {
-                        title: title,
-                        subtitle: subtitle,
-                        body: body,
-                    },
-                    "mutable-content": 1
-                },
-                nostr_event: JSON.stringify(event.info),
-            }),
+        // Now we run the node.js script to send the notification
+        // We need to use Node.js because the APNS library needs some specific Node.js crypto library calls that Deno doesn't support
+        const process = Deno.run({
+            cmd: ["node", scriptPath],
+            stdin: "piped",
+            stdout: "piped",
+            stderr: "piped",
         });
+
+        await process.stdin.write(new TextEncoder().encode(JSON.stringify(payload)));
+        await process.stdin.close();
+    
+        const { code } = await process.status();
+    
+        // Consider reading the output and error for debugging
+        const rawOutput = await process.output();
+        const rawError = await process.stderrOutput();
+    
+        if (code !== 0) {
+            const errorString = new TextDecoder().decode(rawError);
+            this.logger.error("Failed to send notification to device token '" + deviceToken + "': " + errorString);
+        }
+    
+        // Don't forget to close the process
+        process.close();
+        return;
     }
 
     formatNotificationMessage(event: NostrEvent): { title: string, subtitle: string, body: string } {
